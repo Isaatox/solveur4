@@ -84,19 +84,48 @@ async function exploreGameTreeSmart(board: Board, currentPlayer: Player, depth: 
             }];
         }
 
-        const children = await exploreGameTreeSmart(newBoard, opponent, depth - 1);
-        const outcome = summarizeOutcomes(children, currentPlayer);
+        let children: GameNode[];
 
-        results.push({ move: col, outcome, children });
+        if (depth <= 3) {
+            children = await Promise.all(
+                getValidColumns(newBoard).map(async subCol => {
+                    const subRow = getAvailableRow(newBoard, subCol);
+                    if (subRow === null) return null;
+
+                    const subBoard = cloneBoard(newBoard);
+                    dropPiece(subBoard, subRow, subCol, opponent);
+
+                    if (isWinningMove(subBoard, opponent)) {
+                        return {
+                            move: subCol,
+                            outcome: opponent === 1 ? "WIN_P1" : "WIN_P2",
+                            children: [],
+                        };
+                    }
+
+                    return {
+                        move: subCol,
+                        outcome: "DRAW", 
+                        children: [],
+                    };
+                })
+            ).then(res => res.filter(Boolean) as GameNode[]);
+        } else {
+            children = await exploreGameTreeSmart(newBoard, opponent, depth - 1);
+        }
+
+        const outcome = summarizeOutcomes(children, currentPlayer);
+        const result = { move: col, outcome, children };
 
         if (outcome === (currentPlayer === 1 ? "WIN_P1" : "WIN_P2")) {
-            return [results[results.length - 1]];
+            return [result];
         }
+
+        results.push(result);
     }
 
     return results;
 }
-
 
 function summarizeOutcomes(nodes: GameNode[], player: Player): GameOutcome {
     const win = player === 1 ? "WIN_P1" : "WIN_P2";
